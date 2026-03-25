@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# U-Ask QA Automation Framework – Dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Browser Automation
+selenium==4.20.0
+webdriver-manager==4.0.1
+
+# Testing Framework
+pytest==8.1.1
+pytest-xdist==3.5.0           # parallel test execution
+pytest-rerunfailures==13.0    # retry flaky tests
+pytest-timeout==2.3.1
+pytest-ordering==0.6
+
+# Allure Reporting
+allure-pytest==2.13.5
+
+# AI/ML Response Validation
+sentence-transformers==3.0.1
+scikit-learn==1.4.2
+numpy==1.26.4
+langdetect==1.0.9
+
+# Arabic Text Support
+arabic-reshaper==3.0.0
+python-bidi==0.6.0
+
+# Configuration & Environment
+python-dotenv==1.0.1
+pydantic==2.7.1
+pydantic-settings==2.2.1
+
+# HTTP / API health-check
+requests==2.31.0
+
+# Screenshot & Image Processing
+Pillow==10.3.0
+
+# Logging
+colorlog==6.8.2
+
+# Resilient retry logic (used in page objects)
+tenacity==8.3.0
+
+# Accessibility (axe-core via Selenium)
+axe-selenium-python==2.1.6
+
+# Optional – OpenAI for deeper response validation (comment out if not needed)
+# openai==1.30.1
+
+# Dev / Linting (not required for test execution)
+black==24.4.2
+flake8==7.0.0
