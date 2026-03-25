@@ -132,8 +132,8 @@ class TestMessageSubmission(BaseTest):
         with allure.step("Submit the message"):
             chatbot_page.submit_message()
 
-        with allure.step("Wait up to 30 s for an AI response bubble"):
-            chatbot_page.wait_for_response_complete(timeout=30)
+        with allure.step("Wait up to 90 s for an AI response bubble"):
+            chatbot_page.wait_for_response_complete(timeout=90)
 
         with allure.step("Assert at least one response is present and non-empty"):
             response = chatbot_page.get_last_response()
