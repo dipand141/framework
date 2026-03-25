@@ -1,0 +1,40 @@
+# Environment
+.env
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Pytest
+.pytest_cache/
+*.log
+
+# Allure
+reports/allure-results/
+reports/allure-report/
+reports/screenshots/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# HuggingFace model cache (large binary – use CI cache layer instead)
+# .cache/
+
+# Node (if allure CLI installed via npm)
+node_modules/
