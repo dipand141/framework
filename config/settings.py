@@ -49,6 +49,9 @@ class Settings:
     # ── Selenium Grid ────────────────────────────────────────────────────────
     selenium_grid_url: Optional[str]
 
+    # ── Chrome Remote Debugging ───────────────────────────────────────────────
+    chrome_debug_port: Optional[int]
+
     # ── Retry / Rate-limit ───────────────────────────────────────────────────
     max_retries: int
     retry_delay: float
@@ -88,6 +91,8 @@ class Settings:
         )
 
         self.selenium_grid_url = os.getenv("SELENIUM_GRID_URL") or None
+        _debug_port = os.getenv("CHROME_DEBUG_PORT")
+        self.chrome_debug_port = int(_debug_port) if _debug_port else None
 
         self.max_retries = int(os.getenv("MAX_RETRIES", "3"))
         self.retry_delay = float(os.getenv("RETRY_DELAY", "2.0"))

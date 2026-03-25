@@ -38,7 +38,7 @@ _DATA_PATH = Path(__file__).parent.parent / "data" / "test-data.json"
 with open(_DATA_PATH, encoding="utf-8") as _f:
     _DATA = json.load(_f)
 
-_SEC_CASES = [tc for tc in _DATA["test_cases"] if tc["suite"] == "security"]
+_SEC_CASES = _DATA["security_tests"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ Handles mobile emulation and headless mode.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -34,6 +36,9 @@ class DriverFactory:
         Instantiate the correct WebDriver based on settings.
         Returns a fully configured driver ready for use.
         """
+        if settings.chrome_debug_port:
+            return DriverFactory._attach_to_existing_chrome(settings)
+
         if settings.selenium_grid_url:
             return DriverFactory._create_remote(settings)
 
@@ -48,6 +53,23 @@ class DriverFactory:
         raise ValueError(
             f"Unsupported browser: '{browser}'. Choose chrome, firefox, or edge."
         )
+
+    # ── Attach to existing Chrome (remote debugging) ──────────────────────────
+
+    @staticmethod
+    def _attach_to_existing_chrome(settings: Settings) -> WebDriver:
+        """Connect to a Chrome instance already running with --remote-debugging-port."""
+        port = settings.chrome_debug_port
+        options = ChromeOptions()
+        options.debugger_address = f"127.0.0.1:{port}"
+        wdm_path = ChromeDriverManager().install()
+        chromedriver_bin = Path(wdm_path).parent / "chromedriver"
+        driver_path = str(chromedriver_bin) if chromedriver_bin.exists() else wdm_path
+        service = ChromeService(driver_path)
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.implicitly_wait(settings.implicit_wait)
+        log.info("Attached to existing Chrome on port %s", port)
+        return driver
 
     # ── Chrome ────────────────────────────────────────────────────────────────
 
@@ -83,7 +105,10 @@ class DriverFactory:
         }
         options.add_experimental_option("prefs", prefs)
 
-        service = ChromeService(ChromeDriverManager().install())
+        wdm_path = ChromeDriverManager().install()
+        chromedriver_bin = Path(wdm_path).parent / "chromedriver"
+        driver_path = str(chromedriver_bin) if chromedriver_bin.exists() else wdm_path
+        service = ChromeService(driver_path)
         driver = webdriver.Chrome(service=service, options=options)
         driver.implicitly_wait(settings.implicit_wait)
         driver.maximize_window()

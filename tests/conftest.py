@@ -143,14 +143,20 @@ def ai_validator(settings: Settings) -> AIValidator:
 def driver(request: pytest.FixtureRequest, settings: Settings) -> Generator[WebDriver, None, None]:
     """
     Create a fresh WebDriver for each test.
+
+    When CHROME_DEBUG_PORT is set the driver attaches to an existing Chrome
+    session instead of launching a new one. In that mode the browser is NOT
+    quit at teardown so the user's session stays alive.
+
     Teardown:
       1. Capture screenshot if the test FAILED (call phase)
       2. Attach screenshot to Allure
-      3. quit() the driver
+      3. quit() the driver (skipped when using remote debugging)
     """
+    using_existing = bool(settings.chrome_debug_port)
     log.info(
-        "Creating %s driver for test: %s",
-        settings.browser,
+        "%s driver for test: %s",
+        "Attaching to existing Chrome" if using_existing else f"Creating {settings.browser}",
         request.node.nodeid,
     )
     web_driver = DriverFactory.create(settings)
@@ -165,11 +171,14 @@ def driver(request: pytest.FixtureRequest, settings: Settings) -> Generator[WebD
         log.warning("Test FAILED – capturing screenshot: %s", test_name)
         helper.capture_on_failure(test_name)
 
-    log.info("Quitting driver for test: %s", request.node.nodeid)
-    try:
-        web_driver.quit()
-    except Exception as exc:
-        log.warning("Error quitting driver: %s", exc)
+    if using_existing:
+        log.info("Leaving existing Chrome session open after test: %s", request.node.nodeid)
+    else:
+        log.info("Quitting driver for test: %s", request.node.nodeid)
+        try:
+            web_driver.quit()
+        except Exception as exc:
+            log.warning("Error quitting driver: %s", exc)
 
 
 @pytest.fixture(scope="function")

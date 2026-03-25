@@ -55,6 +55,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.support.ui import WebDriverWait
 
 from config.settings import Settings
 from pages.base_page import BasePage, Locator
@@ -77,15 +78,14 @@ class ChatbotPage(BasePage):
     # Angular app root — always present, used to confirm Angular has bootstrapped
     APP_ROOT = (By.TAG_NAME, "app-root")
 
-    # Chat widget trigger button (floating bubble or "Ask" button)
-    # TODO: Inspect and replace — look for button near bottom-right of screen
+    # Chat widget trigger button — only used if the input is NOT already visible
     CHATBOT_TRIGGER = (
         By.CSS_SELECTOR,
         "[data-testid='chat-trigger'], "
-        "button[aria-label*='ask' i], "
-        "button[aria-label*='chat' i], "
         ".chat-bubble, "
-        ".uask-trigger",
+        ".uask-trigger, "
+        "button[aria-label='Open chat'], "
+        "button[aria-label='Start chat']",
     )
 
     # Outer chat container (the panel/card that wraps the whole widget)
@@ -99,69 +99,47 @@ class ChatbotPage(BasePage):
         "mat-card.chat",
     )
 
-    # Text input field where the user types their message
-    # TODO: Inspect and replace — Angular Material textarea is common:
-    #       mat-form-field textarea   or   textarea[formcontrolname]
+    # Text input field
     INPUT_FIELD = (
         By.CSS_SELECTOR,
-        "textarea[data-testid='chat-input'], "
-        "textarea[formcontrolname='message'], "
-        "textarea[placeholder*='message' i], "
-        "textarea[placeholder*='اكتب' i], "
-        "textarea[placeholder*='type' i], "
-        "mat-form-field textarea, "
-        "input[type='text'][placeholder*='message' i]",
+        "[aria-label='Please ask me a question'], "
+        "[placeholder*='Please ask me a question'], "
+        "[placeholder*='question' i], "
+        "textarea",
     )
 
-    # Send / submit button
-    # TODO: Inspect and replace — look for button next to the input field
+    # Send button
     SEND_BUTTON = (
         By.CSS_SELECTOR,
-        "button[data-testid='send-button'], "
-        "button[aria-label*='send' i], "
-        "button[type='submit'], "
-        ".send-button, "
-        "mat-icon-button[aria-label*='send' i]",
+        "button[aria-label='Send Message'], "
+        "button.send-question",
     )
 
-    # Bot (AI) response message bubbles
-    # TODO: Inspect and replace — look for elements containing AI-generated text
+    # Bot (AI) response message bubbles — card-body but NOT card-body-user
     RESPONSE_BUBBLE = (
         By.CSS_SELECTOR,
-        "[data-testid='bot-message'], "
-        "app-bot-message, "
-        ".bot-message, "
-        ".ai-message, "
-        ".assistant-message, "
-        ".message-bubble.bot",
+        ".chatContainer .card-body:not(.card-body-user), "
+        ".chatContainer .title:not(.title-user)",
     )
 
-    # Typing / loading indicator (the "..." dots while AI is thinking)
-    # TODO: Inspect and replace — may be an Angular animation component
+    # Typing / loading indicator — "Stop Answering" button appears while AI responds
     TYPING_INDICATOR = (
         By.CSS_SELECTOR,
-        "[data-testid='typing-indicator'], "
-        "app-typing-indicator, "
+        "button[aria-label='Stop Answering'], "
         ".typing-indicator, "
-        ".loading-dots, "
-        ".is-typing",
+        ".loading-dots",
     )
 
-    # Language toggle buttons (EN / AR)
-    # TODO: Inspect and replace — may be a dropdown, tabs, or top-nav buttons
+    # Language toggles
     LANG_TOGGLE_EN = (
         By.CSS_SELECTOR,
-        "[data-lang='en'], "
-        "button[aria-label='English'], "
-        "a[href*='/en/'], "
-        ".lang-en",
+        "a[href*='/en/uask'], "
+        "[data-lang='en']",
     )
     LANG_TOGGLE_AR = (
         By.CSS_SELECTOR,
-        "[data-lang='ar'], "
-        "button[aria-label='العربية'], "
-        "a[href*='/ar/'], "
-        ".lang-ar",
+        "button[aria-label='Arabic'], "
+        "a[href*='/ar/uask']",
     )
 
     # Fallback / error message displayed when the AI cannot respond
@@ -174,24 +152,18 @@ class ChatbotPage(BasePage):
         ".fallback-message",
     )
 
-    # "New chat" / "Clear conversation" button
-    # TODO: Inspect and replace
+    # "New chat" button
     CLEAR_BUTTON = (
         By.CSS_SELECTOR,
-        "button[data-testid='new-chat'], "
-        "button[aria-label*='new chat' i], "
-        "button[aria-label*='clear' i], "
+        "button[aria-label='New Chat'], "
         ".new-chat",
     )
 
     # User's own message bubble
-    # TODO: Inspect and replace
     USER_MESSAGE = (
         By.CSS_SELECTOR,
-        "[data-testid='user-message'], "
-        "app-user-message, "
-        ".user-message, "
-        ".human-message",
+        ".chatContainer .card-body-user, "
+        ".chatContainer .title-user",
     )
 
     # All messages in the conversation (both user + bot)
@@ -202,6 +174,15 @@ class ChatbotPage(BasePage):
         ".chat-message, "
         ".message-bubble",
     )
+
+    # Disclaimer modal "Accept and continue" button
+    DISCLAIMER_ACCEPT = (
+        By.XPATH,
+        "//button[normalize-space()='Accept and continue']",
+    )
+
+    # Google reCAPTCHA iframe (appears before first message can be sent)
+    RECAPTCHA_IFRAME = (By.CSS_SELECTOR, "iframe[src*='recaptcha']")
 
     # ── Initialisation ────────────────────────────────────────────────────────
 
@@ -224,6 +205,7 @@ class ChatbotPage(BasePage):
     def open_and_activate(self) -> "ChatbotPage":
         """Open the page, wait for Angular to render, then activate the widget."""
         self.open()
+        self._dismiss_disclaimer_if_present()
         self._activate_widget_if_needed()
         return self
 
@@ -262,22 +244,50 @@ class ChatbotPage(BasePage):
         # Additional buffer for Angular's async change detection
         self.pause(1.5)
 
+    # ── Disclaimer handling ────────────────────────────────────────────────────
+
+    def _dismiss_disclaimer_if_present(self) -> None:
+        """Click 'Accept and continue' on the disclaimer modal if it appears."""
+        if not self.is_element_visible(self.DISCLAIMER_ACCEPT, timeout=8):
+            self.log.info("No disclaimer modal detected — proceeding")
+            return
+        self.log.info("Disclaimer modal detected — clicking 'Accept and continue'")
+        try:
+            self.safe_click(self.DISCLAIMER_ACCEPT)
+        except Exception as e:
+            self.log.warning("safe_click failed (%s) — retrying with JS click", e)
+            try:
+                btn = self.wait_for_element(self.DISCLAIMER_ACCEPT, timeout=5)
+                self.driver.execute_script("arguments[0].scrollIntoView(true); arguments[0].click();", btn)
+            except Exception as e2:
+                self.log.warning("JS click also failed: %s", e2)
+        self.log.info("Waiting for chat input to become ready after disclaimer...")
+        try:
+            self._wait.until(
+                lambda d: self.is_element_visible(self.INPUT_FIELD, timeout=1)
+            )
+            self.log.info("Chat input ready.")
+        except TimeoutException:
+            self.log.warning("Chat input not visible after disclaimer — proceeding anyway")
+            self.pause(3)
+
     # ── Widget activation ──────────────────────────────────────────────────────
 
     def _activate_widget_if_needed(self) -> None:
         """Click the floating chat trigger if the input is not already visible."""
-        if not self.is_element_visible(self.INPUT_FIELD, timeout=3):
-            if self.is_element_visible(self.CHATBOT_TRIGGER, timeout=5):
-                self.log.info("Clicking chatbot trigger button")
-                self.safe_click(self.CHATBOT_TRIGGER)
-                # Give the widget animation time to finish
-                self.pause(1.0)
-            else:
-                self.log.warning(
-                    "Neither chat trigger nor input field found – widget may be "
-                    "embedded directly or in an iframe"
-                )
-            self._switch_to_chat_iframe_if_present()
+        if self.is_element_visible(self.INPUT_FIELD, timeout=10):
+            self.log.info("Chat input is visible — no trigger click needed")
+            return
+        if self.is_element_visible(self.CHATBOT_TRIGGER, timeout=5):
+            self.log.info("Clicking chatbot trigger button")
+            self.safe_click(self.CHATBOT_TRIGGER)
+            self.pause(1.5)
+        else:
+            self.log.warning(
+                "Neither chat trigger nor input field found – widget may be "
+                "embedded directly or in an iframe"
+            )
+        self._switch_to_chat_iframe_if_present()
 
     def _switch_to_chat_iframe_if_present(self) -> None:
         """If the chat widget is inside an iframe, switch to it."""
@@ -310,11 +320,15 @@ class ChatbotPage(BasePage):
     @allure.step("Submit message")
     def submit_message(self) -> "ChatbotPage":
         """Click Send button (or press Enter if button not found)."""
-        if self.is_element_visible(self.SEND_BUTTON, timeout=2):
+        if self.is_element_visible(self.SEND_BUTTON, timeout=3):
             self.safe_click(self.SEND_BUTTON)
+            self.log.info("Message submitted via send button")
         else:
             input_el = self.wait_for_visible(self.INPUT_FIELD)
             input_el.send_keys(Keys.RETURN)
+            self.log.info("Message submitted via Enter key")
+        self.pause(1.5)
+        self._wait_for_recaptcha_if_present(timeout=120)
         return self
 
     @allure.step("Send message and wait for response: {text}")
@@ -330,43 +344,90 @@ class ChatbotPage(BasePage):
 
     # ── Response utilities ────────────────────────────────────────────────────
 
+    def _wait_for_recaptcha_if_present(self, timeout: int = 120) -> None:
+        """If a reCAPTCHA iframe is visible, wait for the user to solve it."""
+        if not self.is_element_visible(self.RECAPTCHA_IFRAME, timeout=3):
+            return
+        self.log.warning(
+            "reCAPTCHA detected! Please solve it in the browser. "
+            "Waiting up to %ds...", timeout
+        )
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not self.is_element_visible(self.RECAPTCHA_IFRAME, timeout=2):
+                self.log.info("reCAPTCHA solved — continuing")
+                self.pause(2)
+                return
+            time.sleep(2)
+        self.log.warning("reCAPTCHA was not solved within %ds", timeout)
+
     @allure.step("Wait for AI response to complete")
     def wait_for_response_complete(
         self, timeout: Optional[int] = None
     ) -> "ChatbotPage":
         """
-        Wait until:
-        1. The typing indicator disappears, AND
-        2. At least one bot response bubble is visible.
+        Wait strategy:
+          1. Wait up to `timeout` seconds for the Stop Answering button to
+             disappear (signals the AI finished streaming).
+          2. After streaming ends, poll for non-empty response text.
         """
         t = timeout or self.settings.explicit_wait
-        # Wait for typing indicator to appear first (up to 5 s)
-        try:
-            WebDriverWait(self.driver, 5).until(
-                lambda d: d.find_elements(*self.TYPING_INDICATOR)
-            )
-        except Exception:
-            pass  # Typing indicator may not exist in all implementations
+        self.log.info("Waiting for AI to finish streaming (timeout: %ds)...", t)
 
-        # Wait for typing indicator to disappear
-        self.wait_for_element_to_disappear(self.TYPING_INDICATOR, timeout=t)
+        stop_locator = (By.CSS_SELECTOR, "button[aria-label='Stop Answering']")
+        deadline = time.time() + t
+        stop_was_present = False
+        while time.time() < deadline:
+            els = self.driver.find_elements(*stop_locator)
+            if els:
+                stop_was_present = True
+                time.sleep(1)
+            else:
+                if stop_was_present:
+                    self.log.info("Stop Answering button gone — AI finished streaming")
+                break
 
-        # Wait for a bot response to be present
-        try:
-            from selenium.webdriver.support import expected_conditions as EC
-            from selenium.webdriver.support.ui import WebDriverWait
+        if time.time() >= deadline:
+            self.log.warning("Stop Answering still present after %ds — timeout", t)
 
-            WebDriverWait(self.driver, t).until(
-                EC.presence_of_element_located(self.RESPONSE_BUBBLE)
-            )
-        except TimeoutException:
-            self.log.warning("No bot response bubble found within %s seconds", t)
+        self.log.info("Polling for response text...")
+        for _ in range(10):
+            responses = self.get_all_responses()
+            if responses:
+                self.log.info("Response ready: %s", responses[-1][:80])
+                return self
+            time.sleep(1)
+
+        self.log.warning("No response text found after streaming completed")
         return self
 
     def get_all_responses(self) -> List[str]:
-        """Return normalised text of ALL bot response bubbles."""
-        elements = self.driver.find_elements(*self.RESPONSE_BUBBLE)
-        return [self._normalise_text(el.text) for el in elements]
+        """Return normalised text of ALL visible bot response bubbles."""
+        texts = self.driver.execute_script("""
+            var result = [];
+            var seen = new Set();
+
+            var titles = document.querySelectorAll(
+                '.chatContainer .title:not(.title-user)'
+            );
+            for (var i = 0; i < titles.length; i++) {
+                var t = (titles[i].innerText || '').trim();
+                if (t && !seen.has(t)) { seen.add(t); result.push(t); }
+            }
+
+            if (result.length === 0) {
+                var cards = document.querySelectorAll(
+                    '.chatContainer .card-body:not(.card-body-user)'
+                );
+                for (var i = 0; i < cards.length; i++) {
+                    var t = (cards[i].innerText || '').trim();
+                    if (t && !seen.has(t)) { seen.add(t); result.push(t); }
+                }
+            }
+
+            return result;
+        """) or []
+        return [self._normalise_text(t) for t in texts if t]
 
     def get_last_response(self) -> str:
         """Return normalised text of the most recent bot response."""
