@@ -8,18 +8,19 @@
 ## Table of Contents
 
 1. [What Is This Framework?](#1-what-is-this-framework)
-2. [Project Structure — What Each File Does](#2-project-structure--what-each-file-does)
-3. [How Testing Works — The Full Flow](#3-how-testing-works--the-full-flow)
-4. [Test Suites Explained](#4-test-suites-explained)
-5. [AI Validation Deep Dive](#5-ai-validation-deep-dive)
-6. [Setup & Installation](#6-setup--installation)
-7. [Commands to Run Tests](#7-commands-to-run-tests)
-8. [Configuring Test Language](#8-configuring-test-language)
-9. [Understanding the Allure Report](#9-understanding-the-allure-report)
-10. [Environment Variables Reference](#10-environment-variables-reference)
-11. [Updating Locators When the UI Changes](#11-updating-locators-when-the-ui-changes)
-12. [CI/CD Integration](#12-cicd-integration)
-13. [Troubleshooting](#13-troubleshooting)
+2. [Quick Start — Get Running in 5 Steps](#2-quick-start--get-running-in-5-steps)
+3. [Project Structure — What Each File Does](#3-project-structure--what-each-file-does)
+4. [How Testing Works — The Full Flow](#4-how-testing-works--the-full-flow)
+5. [Test Coverage](#5-test-coverage)
+6. [AI Validation Deep Dive](#6-ai-validation-deep-dive)
+7. [Setup & Installation (Detailed)](#7-setup--installation-detailed)
+8. [Environment Variables Reference](#8-environment-variables-reference)
+9. [Commands to Run Tests](#9-commands-to-run-tests)
+10. [Configuring Test Language](#10-configuring-test-language)
+11. [Understanding the Allure Report](#11-understanding-the-allure-report)
+12. [Finding the Real Locators (Required Before First Run)](#12-finding-the-real-locators-required-before-first-run)
+13. [CI/CD Integration](#13-cicd-integration)
+14. [Troubleshooting](#14-troubleshooting)
 
 ---
 
@@ -42,10 +43,123 @@ with per-test AI validation scores, inline failure screenshots, and triage categ
 
 ---
 
-## 2. Project Structure — What Each File Does
+## 2. Quick Start — Get Running in 5 Steps
+
+This section is designed for someone who has never used this repository before.
+Follow these steps in order and you will have tests running locally in under 10 minutes.
+
+### Step 1 — Clone the repository
+
+```bash
+git clone git@github.com:dipand141/framework.git
+cd framework
+```
+
+> **No SSH key?** Use HTTPS instead:
+> ```bash
+> git clone https://github.com/dipand141/framework.git
+> cd framework
+> ```
+
+### Step 2 — Install prerequisites
+
+You need three tools before running the setup script:
+
+| Tool | Version | Install |
+|---|---|---|
+| **Python** | 3.10 or higher | [python.org/downloads](https://python.org/downloads) |
+| **Google Chrome** | Latest | [google.com/chrome](https://google.com/chrome) |
+| **Allure CLI** | 2.27+ | See below |
+
+**Install Allure CLI:**
+
+```bash
+# macOS
+brew install allure
+
+# Windows (using Scoop)
+scoop install allure
+
+# Windows (using Chocolatey)
+choco install allure
+
+# Linux (Debian/Ubuntu)
+sudo apt-get install allure
+```
+
+> Don't have `brew` / `scoop` / `choco`? Install them first:
+> - macOS: [brew.sh](https://brew.sh)
+> - Windows: [scoop.sh](https://scoop.sh) or [chocolatey.org](https://chocolatey.org)
+
+### Step 3 — Run the setup script
+
+```bash
+bash setup_venv.sh
+```
+
+This single command will:
+- Create a Python virtual environment in `./venv/`
+- Install all Python dependencies listed in `requirements.txt`
+- Copy `.env.example` → `.env` (if `.env` does not already exist)
+- Pre-download the 118 MB multilingual AI model from HuggingFace
+- Check that Allure CLI is installed
+
+> **Windows users:** Run this in Git Bash or WSL. PowerShell is not supported.
+
+### Step 4 — Configure your environment
+
+Open the `.env` file that was just created and set the target URL:
+
+```bash
+# macOS / Linux
+nano .env
+
+# Windows (Notepad)
+notepad .env
+```
+
+The minimum required setting:
+
+```dotenv
+CHATBOT_URL=https://beta-ask.u.ae/en/uask
+```
+
+Everything else has sensible defaults. See [Section 8](#8-environment-variables-reference) for the full list.
+
+### Step 5 — Activate the virtual environment and run tests
+
+```bash
+# macOS / Linux
+source venv/bin/activate
+
+# Windows
+venv\Scripts\activate
+```
+
+Then run the tests:
+
+```bash
+# Run the full test suite
+make test
+
+# OR run a quick smoke check (fastest, ~2 minutes)
+make test-smoke
+```
+
+After the tests finish, open the report:
+
+```bash
+make report
+```
+
+Your browser will open automatically with the Allure HTML report.
+
+---
+
+## 3. Project Structure — What Each File Does
 
 ```
-u-ask-qa-automation/
+framework/
 │
 ├── config/
 │   └── settings.py              All runtime configuration in one place.
@@ -102,7 +216,7 @@ u-ask-qa-automation/
 │   │                            assert_rtl_layout(). Wraps every assertion in
 │   │                            an Allure step for traceability.
 │   │
-│   ├── test_ui_behavior.py      Suite A — 12 tests covering the chatbot's
+│   ├── test_ui_behavior.py      Suite A — 15 tests covering the chatbot's
 │   │                            visual and interactive behaviour.
 │   │
 │   ├── test_ai_response_        Suite B — 13 tests validating the quality and
@@ -126,7 +240,7 @@ u-ask-qa-automation/
 
 ---
 
-## 3. How Testing Works — The Full Flow
+## 4. How Testing Works — The Full Flow
 
 Understanding this flow helps you debug failures and extend the framework.
 
@@ -207,9 +321,9 @@ Understanding this flow helps you debug failures and extend the framework.
 
 ---
 
-## 4. Test Suites Explained
+## 5. Test Coverage
 
-### Suite A — UI Behaviour (`test_ui_behavior.py`)
+### Suite A — UI Behaviour (`test_ui_behavior.py`) — 15 tests
 
 Tests that the chatbot works as a functional user interface, independently of what the AI says.
 
@@ -231,7 +345,7 @@ Tests that the chatbot works as a functional user interface, independently of wh
 | `test_input_aria_label` | Input field has an ARIA label (screen readers) |
 | `test_no_critical_accessibility_violations` | axe-core finds no critical a11y issues |
 
-### Suite B — AI Response Validation (`test_ai_response_validation.py`)
+### Suite B — AI Response Validation (`test_ai_response_validation.py`) — 13 tests
 
 Tests the quality and trustworthiness of the AI's answers using semantic similarity.
 
@@ -253,7 +367,7 @@ expected semantic concepts is computed. A score below **0.40** flags the respons
 potentially off-topic or hallucinated. A score below the configured **threshold (default 0.65)**
 fails the test.
 
-### Suite C — Security & Injection (`test_security_injection.py`)
+### Suite C — Security & Injection (`test_security_injection.py`) — 16 tests
 
 Tests that the chatbot cannot be exploited via its input field.
 
@@ -271,9 +385,11 @@ Tests that the chatbot cannot be exploited via its input field.
 | `test_ssti_not_evaluated` | `{{7*7}}` expressions are not evaluated to `49` |
 | `test_data_driven_security_case` (×7) | All security cases + variants from test-data.json |
 
+**Total: 44 tests across 3 suites**
+
 ---
 
-## 5. AI Validation Deep Dive
+## 6. AI Validation Deep Dive
 
 The framework uses **`paraphrase-multilingual-MiniLM-L12-v2`** from HuggingFace sentence-transformers.
 
@@ -328,23 +444,23 @@ Set `SIMILARITY_THRESHOLD` in your `.env` file. A higher value is stricter:
 
 ---
 
-## 6. Setup & Installation
+## 7. Setup & Installation (Detailed)
 
 ### Prerequisites
 
-| Tool | Version | Install |
-|---|---|---|
-| Python | 3.10+ | python.org |
-| Google Chrome | Latest | google.com/chrome |
-| Allure CLI | 2.27+ | `brew install allure` (macOS) |
-| Git | Any | git-scm.com |
+| Tool | Version | macOS | Windows | Linux |
+|---|---|---|---|---|
+| Python | 3.10+ | `brew install python` | [python.org](https://python.org/downloads) | `apt install python3` |
+| Google Chrome | Latest | [google.com/chrome](https://google.com/chrome) | [google.com/chrome](https://google.com/chrome) | [google.com/chrome](https://google.com/chrome) |
+| Allure CLI | 2.27+ | `brew install allure` | `scoop install allure` | `apt install allure` |
+| Git | Any | `brew install git` | [git-scm.com](https://git-scm.com) | `apt install git` |
 
 ### One-command setup
 
 ```bash
 # Clone the repository
-git clone <repo-url>
-cd u-ask-qa-automation
+git clone git@github.com:dipand141/framework.git
+cd framework
 
 # Run the setup script — this does everything:
 #   · Creates a Python virtual environment in ./venv/
@@ -361,9 +477,15 @@ bash setup_venv.sh
 # macOS / Linux
 source venv/bin/activate
 
-# Windows
-venv\Scripts\activate
+# Windows (Command Prompt)
+venv\Scripts\activate.bat
+
+# Windows (PowerShell)
+venv\Scripts\Activate.ps1
 ```
+
+> You will see `(venv)` at the start of your terminal prompt when the environment is active.
+> You must activate it every time you open a new terminal window.
 
 ### Configure your environment
 
@@ -372,12 +494,54 @@ venv\Scripts\activate
 #   CHATBOT_URL  — the URL of the U-Ask chatbot
 #   BROWSER      — chrome, firefox, or edge
 #   TEST_LANGUAGE — en, ar, or both
-nano .env
+nano .env          # macOS / Linux
+notepad .env       # Windows
 ```
 
 ---
 
-## 7. Commands to Run Tests
+## 8. Environment Variables Reference
+
+All variables live in your `.env` file (copied from `.env.example` during setup).
+You never need to set environment variables manually in your shell — the framework reads `.env` automatically.
+
+| Variable | Default | Required | Description |
+|---|---|---|---|
+| `CHATBOT_URL` | `https://beta-ask.u.ae/en/uask` | **Yes** | Target chatbot URL |
+| `BROWSER` | `chrome` | No | `chrome`, `firefox`, or `edge` |
+| `HEADLESS` | `false` | No | Set `true` to run without a visible browser window (required for CI) |
+| `IMPLICIT_WAIT` | `10` | No | Seconds Selenium waits before raising NoSuchElementException |
+| `EXPLICIT_WAIT` | `30` | No | Seconds WebDriverWait waits for a specific condition |
+| `TEST_LANGUAGE` | `both` | No | `en`, `ar`, or `both` |
+| `MOBILE_EMULATION` | `false` | No | Enable Chrome device emulation |
+| `MOBILE_DEVICE` | `iPhone 12` | No | Device name (Chrome DevTools device list) |
+| `SIMILARITY_THRESHOLD` | `0.65` | No | Minimum cosine similarity score to pass AI validation (range 0–1) |
+| `SENTENCE_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | No | HuggingFace model name |
+| `OPENAI_API_KEY` | *(empty)* | No | Optional — enables LLM-based deep validation (comment out if unused) |
+| `SCREENSHOT_ON_FAILURE` | `true` | No | Auto-capture screenshot on test failure |
+| `SCREENSHOTS_DIR` | `reports/screenshots` | No | Directory where failure screenshots are saved |
+| `ALLURE_RESULTS_DIR` | `reports/allure-results` | No | Directory where Allure writes JSON results |
+| `SELENIUM_GRID_URL` | *(empty)* | No | Remote Selenium Grid URL for CI/distributed execution |
+| `INTER_MESSAGE_DELAY` | `1.5` | No | Seconds to pause between chat messages (avoids rate-limiting) |
+| `RETRY_DELAY` | `2.0` | No | Seconds to wait between retry attempts |
+| `MAX_RETRIES` | `3` | No | Retry attempts for flaky element interactions |
+| `LOG_LEVEL` | `INFO` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+
+### Minimal `.env` to get started
+
+```dotenv
+CHATBOT_URL=https://beta-ask.u.ae/en/uask
+BROWSER=chrome
+HEADLESS=false
+TEST_LANGUAGE=both
+SIMILARITY_THRESHOLD=0.65
+```
+
+---
+
+## 9. Commands to Run Tests
+
+Make sure your virtual environment is active (`source venv/bin/activate`) before running any command.
 
 ### Full test suite
 
@@ -517,7 +681,7 @@ clean-all            Also remove the virtual environment
 
 ---
 
-## 8. Configuring Test Language
+## 10. Configuring Test Language
 
 Edit `.env` to control which language suite runs:
 
@@ -543,7 +707,7 @@ TEST_LANGUAGE=en pytest -m english
 
 ---
 
-## 9. Understanding the Allure Report
+## 11. Understanding the Allure Report
 
 After running `make report`, the HTML report opens in your browser with:
 
@@ -570,31 +734,7 @@ so every report is fully reproducible.
 
 ---
 
-## 10. Environment Variables Reference
-
-| Variable | Default | Description |
-|---|---|---|
-| `CHATBOT_URL` | `https://u.ae/en` | Target chatbot URL |
-| `BROWSER` | `chrome` | `chrome`, `firefox`, or `edge` |
-| `HEADLESS` | `false` | Set `true` for CI / no-display environments |
-| `IMPLICIT_WAIT` | `10` | Seconds Selenium waits before NoSuchElementException |
-| `EXPLICIT_WAIT` | `30` | Seconds WebDriverWait waits for conditions |
-| `TEST_LANGUAGE` | `both` | `en`, `ar`, or `both` |
-| `MOBILE_EMULATION` | `false` | Enable Chrome device emulation |
-| `MOBILE_DEVICE` | `iPhone 12` | Device name (Chrome DevTools device list) |
-| `SIMILARITY_THRESHOLD` | `0.65` | Minimum cosine similarity score to pass AI validation |
-| `SENTENCE_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | HuggingFace model name |
-| `SCREENSHOT_ON_FAILURE` | `true` | Auto-capture screenshot on test failure |
-| `SCREENSHOTS_DIR` | `reports/screenshots` | Where to save screenshots |
-| `ALLURE_RESULTS_DIR` | `reports/allure-results` | Where Allure writes JSON results |
-| `SELENIUM_GRID_URL` | *(empty)* | Remote Selenium Grid URL |
-| `INTER_MESSAGE_DELAY` | `1.5` | Seconds to pause between chat messages (avoids rate-limiting) |
-| `MAX_RETRIES` | `3` | Retry attempts for flaky element interactions |
-| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
-
----
-
-## 11. Finding the Real Locators (Required Before First Run)
+## 12. Finding the Real Locators (Required Before First Run)
 
 ### Why this step is needed
 
@@ -684,7 +824,7 @@ Press `Ctrl+F` inside the DevTools Elements panel and search for:
 
 ---
 
-## 12. CI/CD Integration
+## 13. CI/CD Integration
 
 ```yaml
 # .github/workflows/qa.yml
@@ -731,7 +871,7 @@ jobs:
 
 ---
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 **ChromeDriver version mismatch**
 ```bash
@@ -764,3 +904,13 @@ SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 - Verify `CHATBOT_URL` in `.env` points to the correct page
 - Open the URL manually and check if the chat widget requires a cookie consent click first
 - Add a cookie consent dismissal step to `ChatbotPage.open_and_activate()` if needed
+
+**`make` command not found on Windows**
+- Install Make via Chocolatey: `choco install make`
+- Or run the pytest commands directly (see [Using pytest directly](#using-pytest-directly-advanced))
+
+**`venv\Scripts\Activate.ps1` is blocked on Windows**
+- Run PowerShell as Administrator and execute:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
